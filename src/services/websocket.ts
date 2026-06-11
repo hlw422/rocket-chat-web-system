@@ -189,22 +189,28 @@ class WebSocketService {
     const isOwnMessage = message.u._id === currentUserId;
 
     // Update room's last message (for all messages including own)
-    const { rooms } = useChatStore.getState();
-    const updatedRooms = rooms.map(room => {
-      if (room._id === roomId) {
-        return {
-          ...room,
-          lastMessage: {
-            _id: message._id,
-            msg: message.msg,
-            ts: message.ts,
-            u: message.u,
-          },
-        };
-      }
-      return room;
-    });
-    useChatStore.setState({ rooms: updatedRooms });
+    const { rooms, isLoaded } = useChatStore.getState();
+    const roomIndex = rooms.findIndex(room => room._id === roomId);
+    
+    if (roomIndex >= 0) {
+      // Room exists, update its last message
+      const updatedRooms = [...rooms];
+      updatedRooms[roomIndex] = {
+        ...updatedRooms[roomIndex],
+        lastMessage: {
+          _id: message._id,
+          msg: message.msg,
+          ts: message.ts,
+          u: message.u,
+        },
+      };
+      useChatStore.setState({ rooms: updatedRooms });
+    } else if (isLoaded) {
+      // Room doesn't exist in list, but rooms have been loaded - reload to get the new room
+      useChatStore.getState().loadRooms();
+    }
+    // If rooms haven't been loaded yet (isLoaded is false), don't trigger loadRooms
+    // as it will be loaded when the ChatPage mounts
 
     // Only add message to store and send notification for OTHER users' messages.
     // Own messages are handled by sendMessage's optimistic update + REST API response.

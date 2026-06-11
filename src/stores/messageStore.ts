@@ -20,14 +20,25 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   loadMessages: async (roomId: string) => {
     set({ isLoading: true });
     try {
-      const messages = await chatApi.getRoomMessages(roomId);
-      set((state) => ({
-        messages: {
-          ...state.messages,
-          [roomId]: messages,
-        },
-        isLoading: false,
-      }));
+      const serverMessages = await chatApi.getRoomMessages(roomId);
+      set((state) => {
+        const existingMessages = state.messages[roomId] || [];
+        // Find local-only messages (temp messages or messages not yet on server)
+        const serverIds = new Set(serverMessages.map(m => m._id));
+        const localOnlyMessages = existingMessages.filter(m => 
+          m._id.startsWith('temp_') || !serverIds.has(m._id)
+        );
+        // Merge: server messages + any local-only messages that server doesn't have yet
+        const mergedMessages = [...serverMessages, ...localOnlyMessages]
+          .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+        return {
+          messages: {
+            ...state.messages,
+            [roomId]: mergedMessages,
+          },
+          isLoading: false,
+        };
+      });
     } catch (error) {
       console.error('Failed to load messages:', error);
       set({ isLoading: false });

@@ -24,17 +24,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const roomMessages = messages[room._id] || [];
+  const isInitialLoad = useRef(true);
 
   useEffect(() => {
+    isInitialLoad.current = true;
     loadMessages(room._id);
   }, [room._id, loadMessages]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (roomMessages.length > 0) {
+      scrollToBottom(isInitialLoad.current);
+      isInitialLoad.current = false;
+    }
   }, [roomMessages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (instant: boolean = false) => {
+    messagesEndRef.current?.scrollIntoView({ 
+      behavior: instant ? 'instant' : 'smooth' 
+    });
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

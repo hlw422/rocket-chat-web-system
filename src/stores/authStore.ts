@@ -14,8 +14,18 @@ interface AuthState {
   clearError: () => void;
 }
 
+// Initialize user from localStorage if available
+const getInitialUser = (): User | null => {
+  const username = localStorage.getItem('username');
+  const userId = localStorage.getItem('userId');
+  if (username && userId) {
+    return { _id: userId, username } as User;
+  }
+  return null;
+};
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
+  user: getInitialUser(),
   isAuthenticated: !!localStorage.getItem('authToken'),
   isLoading: false,
   error: null,

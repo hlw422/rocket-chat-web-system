@@ -16,16 +16,44 @@ import ChatWindow from '@/modules/chat/components/ChatWindow';
 const ChatPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const { rooms, activeRoom, setActiveRoom, loadRooms, unreadCounts } = useChatStore();
+  const { user, checkAuth } = useAuthStore();
+  const { rooms, activeRoom, setActiveRoom, loadRooms, unreadCounts, isLoading, isLoaded } = useChatStore();
   const { loadMessages } = useMessageStore();
-  const { subscribeToRoom, unsubscribeFromRoom } = useWebSocket();
+  const { subscribeToRoom, unsubscribeFromRoom, isConnected } = useWebSocket();
   const [searchQuery, setSearchQuery] = useState('');
   const previousRoomIdRef = useRef<string | undefined>(undefined);
+  const hasLoadedRef = useRef(false);
+
+  // Get current username with multiple fallbacks
+  const getCurrentUsername = (): string => {
+    // Try multiple sources for username
+    const username = user?.username || localStorage.getItem('username') || '';
+    return username;
+  };
 
   useEffect(() => {
-    loadRooms();
+    // Ensure user data is loaded
+    if (!user) {
+      checkAuth();
+    }
+  }, [user, checkAuth]);
+
+  useEffect(() => {
+    // Load rooms on mount, but only once
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      console.log('[ChatPage] Initial loadRooms call');
+      loadRooms();
+    }
   }, [loadRooms]);
+
+  // Reload rooms when WebSocket reconnects
+  useEffect(() => {
+    if (isConnected && isLoaded) {
+      console.log('[ChatPage] WebSocket reconnected, reloading rooms');
+      loadRooms();
+    }
+  }, [isConnected, loadRooms, isLoaded]);
 
   useEffect(() => {
     // Only run when roomId actually changes
@@ -49,25 +77,29 @@ const ChatPage: React.FC = () => {
     }
   }, [roomId, rooms, setActiveRoom, loadMessages, subscribeToRoom, unsubscribeFromRoom]);
 
+  const getOtherUser = (room: any): string => {
+    const currentUsername = getCurrentUsername();
+    if (!currentUsername || !room.usernames || room.usernames.length < 2) {
+      return '';
+    }
+    return room.usernames.find((u: string) => u !== currentUsername) || '';
+  };
+
   const filteredRooms = rooms.filter(room => {
     if (!searchQuery) return true;
-    const otherUser = room.usernames?.find(u => u !== user?.username);
-    return otherUser?.toLowerCase().includes(searchQuery.toLowerCase());
+    const otherUser = getOtherUser(room);
+    return otherUser.toLowerCase().includes(searchQuery.toLowerCase());
   });
-
-  const handleRoomClick = (room: any) => {
-    navigate(`/chat/${room._id}`);
-  };
-
-  const getOtherUser = (room: any) => {
-    return room.usernames?.find(u => u !== user?.username) || '';
-  };
 
   // Filter out rooms with no valid other user
   const validRooms = filteredRooms.filter(room => {
     const otherUser = getOtherUser(room);
     return otherUser && otherUser.length > 0;
   });
+
+  const handleRoomClick = (room: any) => {
+    navigate(`/chat/${room._id}`);
+  };
 
   return (
     <div className="flex h-full min-h-0 min-w-0 w-full">
@@ -95,7 +127,14 @@ const ChatPage: React.FC = () => {
         {/* Room List */}
         <ScrollArea className="flex-1">
           <div className="p-2">
-            {validRooms.map((room) => {
+            {isLoading && rooms.length === 0 && (
+              <div className="text-center py-8 text-text-tertiary">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                <p>加载中...</p>
+              </div>
+            )}
+
+            {!isLoading && validRooms.map((room) => {
               const otherUser = getOtherUser(room);
               const unreadCount = unreadCounts[room._id] || 0;
               const isActive = activeRoom?._id === room._id;
@@ -144,7 +183,7 @@ const ChatPage: React.FC = () => {
               );
             })}
 
-            {validRooms.length === 0 && (
+            {!isLoading && validRooms.length === 0 && (
               <div className="text-center py-8 text-text-tertiary">
                 <p>暂无会话</p>
                 <p className="text-sm mt-1">添加好友开始聊天</p>

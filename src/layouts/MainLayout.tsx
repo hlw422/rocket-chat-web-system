@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { MessageCircle, Users, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,23 @@ const navItems = [
 const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuthStore();
+  const { user, checkAuth, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    // Fetch user data on mount if not already loaded
+    if (!user) {
+      checkAuth();
+    }
+  }, [user, checkAuth]);
+
+  // Show loading while fetching user data
+  if (isLoading && !user) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
