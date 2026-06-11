@@ -6,15 +6,12 @@
 
 ### 登录页面
 ![登录页面](screenshots/login-page.png)
-
-### 登录成功
-![登录成功](screenshots/after-login.png)
-
 ### 注册页面
 ![注册页面](screenshots/register-page.png)
-
-### 初始页面
-![初始页面](screenshots/initial-page.png)
+### 聊天
+![注册页面](screenshots/chats.png)
+### 好友页面
+![初始页面](screenshots/friends.png)
 
 ## 功能特性
 
