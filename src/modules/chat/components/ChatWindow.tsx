@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { useMessageStore } from '@/stores/messageStore';
 import { useAuthStore } from '@/stores/authStore';
 import { fileApi } from '@/api/file';
+import EmojiPicker from '@/modules/message/components/EmojiPicker';
 import type { DirectMessageRoom } from '@/types/room';
 import type { Message } from '@/types/message';
 
@@ -21,26 +22,41 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   const [inputValue, setInputValue] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const roomMessages = messages[room._id] || [];
-  const isInitialLoad = useRef(true);
+  const isAtBottomRef = useRef(true);
 
   useEffect(() => {
-    isInitialLoad.current = true;
     loadMessages(room._id);
   }, [room._id, loadMessages]);
 
   useEffect(() => {
     if (roomMessages.length > 0) {
-      scrollToBottom(isInitialLoad.current);
-      isInitialLoad.current = false;
+      // Always scroll to bottom when messages change (initial load or new message)
+      setTimeout(() => {
+        if (scrollAreaRef.current) {
+          scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+        }
+      }, 50);
     }
   }, [roomMessages]);
 
-  const scrollToBottom = (instant: boolean = false) => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: instant ? 'instant' : 'smooth' 
+  // Handle scroll to track if user is at bottom
+  const handleScroll = () => {
+    if (scrollAreaRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = scrollAreaRef.current;
+      isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+    }
+  };
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      if (scrollAreaRef.current) {
+        scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      }
     });
   };
 
@@ -57,6 +73,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setInputValue((prev) => prev + emoji);
+    setShowEmojiPicker(false);
   };
 
   const handleSend = async () => {
@@ -221,7 +242,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea ref={scrollAreaRef} className="flex-1 p-4" onScroll={handleScroll}>
         <div className="space-y-4">
           {roomMessages.map((message, index) => {
             const isMe = isCurrentUser(message);
@@ -294,9 +315,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
         )}
         
         <div className="flex items-end space-x-2">
-          <Button variant="ghost" size="icon" className="rounded-12 mb-1">
-            <Smile className="w-5 h-5 text-text-tertiary" />
-          </Button>
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="rounded-12 mb-1"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            >
+              <Smile className="w-5 h-5 text-text-tertiary" />
+            </Button>
+            {showEmojiPicker && (
+              <div className="absolute bottom-12 left-0 z-50">
+                <EmojiPicker 
+                  onSelect={handleEmojiSelect} 
+                  onClose={() => setShowEmojiPicker(false)} 
+                />
+              </div>
+            )}
+          </div>
           <input
             type="file"
             ref={fileInputRef}
