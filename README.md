@@ -2,6 +2,20 @@
 
 一个基于 React + TypeScript + Vite 构建的 Rocket.Chat Web 客户端。
 
+## 界面预览
+
+### 登录页面
+![登录页面](screenshots/login-page.png)
+
+### 注册页面
+![注册页面](screenshots/register-page.png)
+
+### 聊天界面
+![聊天界面](screenshots/after-login.png)
+
+### 初始页面
+![初始页面](screenshots/initial-page.png)
+
 ## 功能特性
 
 - 🔐 用户认证（登录/注册）
