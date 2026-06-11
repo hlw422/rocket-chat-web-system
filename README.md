@@ -7,11 +7,11 @@
 ### 登录页面
 ![登录页面](screenshots/login-page.png)
 
+### 登录成功
+![登录成功](screenshots/after-login.png)
+
 ### 注册页面
 ![注册页面](screenshots/register-page.png)
-
-### 聊天界面
-![聊天界面](screenshots/after-login.png)
 
 ### 初始页面
 ![初始页面](screenshots/initial-page.png)
