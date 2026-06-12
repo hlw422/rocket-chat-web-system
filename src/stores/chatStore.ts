@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { chatApi } from '@/api/chat';
+import { websocketService } from '@/services/websocket';
 import type { Room, DirectMessageRoom } from '@/types/room';
 
 interface ChatState {
@@ -78,6 +79,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         rooms: uniqueRooms, 
         isLoading: false,
         isLoaded: true 
+      });
+
+      // Subscribe to presence for each other user
+      const currentUsername = localStorage.getItem('username');
+      uniqueRooms.forEach((room) => {
+        const otherUsername = room.usernames?.find((u) => u !== currentUsername);
+        if (otherUsername) {
+          websocketService.subscribeToPresenceByUsername(otherUsername);
+        }
       });
     } catch (error) {
       console.error('[chatStore] Failed to load rooms:', error);

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFriendStore } from '@/stores/friendStore';
 import { useAuthStore } from '@/stores/authStore';
+import StatusIndicator from '@/components/StatusIndicator';
 import { useNavigate } from 'react-router-dom';
 
 const ContactsPage: React.FC = () => {
@@ -141,11 +142,18 @@ const ContactsPage: React.FC = () => {
                   key={friend._id}
                   className="flex items-center p-3 rounded-12 hover:bg-background-secondary group"
                 >
-                  <Avatar className="w-10 h-10 mr-3">
-                    <AvatarFallback className="bg-primary/20 text-primary">
-                      {friend.user.username.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="w-10 h-10 mr-3">
+                      <AvatarFallback className="bg-primary/20 text-primary">
+                        {friend.user.username.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <StatusIndicator
+                      username={friend.user.username}
+                      size="sm"
+                      className="absolute -bottom-0.5 right-2"
+                    />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-text-primary truncate">
                       {friend.user.name || friend.user.username}

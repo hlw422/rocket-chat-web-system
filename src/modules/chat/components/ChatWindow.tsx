@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Smile, Paperclip, MoreHorizontal, Phone, Video, X, FileIcon, Loader2, Download, Image as ImageIcon, FileAudio, FileVideo, File } from 'lucide-react';
+import { Send, Smile, Paperclip, MoreHorizontal, Phone, Video, X, FileIcon, Loader2, Download, Image as ImageIcon, FileAudio, FileVideo, File, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,8 @@ import { useMessageStore } from '@/stores/messageStore';
 import { useAuthStore } from '@/stores/authStore';
 import { fileApi } from '@/api/file';
 import EmojiPicker from '@/modules/message/components/EmojiPicker';
+import MessageSearch from '@/modules/message/components/MessageSearch';
+import StatusIndicator from '@/components/StatusIndicator';
 import type { DirectMessageRoom } from '@/types/room';
 import type { Message } from '@/types/message';
 
@@ -23,6 +25,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -78,6 +82,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   const handleEmojiSelect = (emoji: string) => {
     setInputValue((prev) => prev + emoji);
     setShowEmojiPicker(false);
+  };
+
+  const handleSelectSearchMessage = (message: Message) => {
+    setHighlightMessageId(message._id);
+    const el = document.getElementById(`msg-${message._id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    setTimeout(() => setHighlightMessageId(null), 3000);
   };
 
   const handleSend = async () => {
@@ -214,9 +227,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 min-w-0 bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
+    <div className="flex flex-row h-full min-h-0 min-w-0 bg-background">
+      {/* Main chat area */}
+      <div className="flex flex-col flex-1 min-h-0 min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-border">
         <div className="flex items-center">
           <Avatar className="w-10 h-10 mr-3">
             <AvatarFallback className="bg-primary/20 text-primary">
@@ -225,10 +240,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
           </Avatar>
           <div>
             <h3 className="font-semibold text-text-primary">{otherUser}</h3>
-            <p className="text-sm text-text-tertiary">在线</p>
+            <div className="flex items-center">
+              <StatusIndicator username={otherUser} size="sm" showText />
+            </div>
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button
+            variant={showSearch ? "secondary" : "ghost"}
+            size="icon"
+            className="rounded-12"
+            onClick={() => setShowSearch(!showSearch)}
+          >
+            <Search className="w-5 h-5" />
+          </Button>
           <Button variant="ghost" size="icon" className="rounded-12">
             <Phone className="w-5 h-5" />
           </Button>
@@ -259,7 +284,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
                   </div>
                 )}
                 <div
-                  className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                  id={`msg-${message._id}`}
+                  className={`flex ${isMe ? 'justify-end' : 'justify-start'} transition-all duration-500 ${
+                    highlightMessageId === message._id ? 'bg-functional-warning/20 rounded-12' : ''
+                  }`}
                 >
                   <div
                     className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end max-w-[70%]`}
@@ -370,6 +398,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
           </Button>
         </div>
       </div>
+      </div>
+
+      {/* Search Panel */}
+      {showSearch && (
+        <MessageSearch
+          roomId={room._id}
+          onSelectMessage={handleSelectSearchMessage}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
     </div>
   );
 };

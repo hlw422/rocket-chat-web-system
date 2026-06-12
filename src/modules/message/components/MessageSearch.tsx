@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -98,7 +98,7 @@ const MessageSearch: React.FC<MessageSearchProps> = ({ roomId, onSelectMessage, 
           {isLoading ? (
             <div className="text-center py-8 text-text-tertiary">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-              <p>搜索中...</p>
+              <p>正在检索历史消息...</p>
             </div>
           ) : results.length > 0 ? (
             <div className="space-y-3">
@@ -122,7 +122,10 @@ const MessageSearch: React.FC<MessageSearchProps> = ({ roomId, onSelectMessage, 
                     </span>
                   </div>
                   <p className="text-sm text-text-secondary line-clamp-2">
-                    {highlightText(message.msg, searchQuery)}
+                    {message.file && (
+                      <FileText className="inline w-3.5 h-3.5 mr-1 text-primary align-text-bottom" />
+                    )}
+                    {highlightText(message.msg || message.file?.name || message.attachments?.[0]?.title || '', searchQuery)}
                   </p>
                 </div>
               ))}

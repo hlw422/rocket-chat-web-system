@@ -1,5 +1,6 @@
 import apiClient from './client';
 import type { Message } from '@/types/message';
+import { chatApi } from './chat';
 
 export const messageApi = {
   sendMessage: async (roomId: string, text: string): Promise<Message> => {
@@ -29,8 +30,27 @@ export const messageApi = {
   },
 
   searchMessages: async (roomId: string, searchText: string): Promise<Message[]> => {
-    const response = await apiClient.get(`/chat.search?roomId=${roomId}&searchText=${encodeURIComponent(searchText)}`);
-    return response.data.messages;
+    const query = searchText.toLowerCase();
+    const allMessages: Message[] = [];
+    const pageSize = 100;
+    const maxPages = 20;
+
+    for (let page = 0; page < maxPages; page++) {
+      const messages = await chatApi.getRoomMessages(roomId, {
+        offset: page * pageSize,
+        count: pageSize,
+      });
+      if (!messages || messages.length === 0) break;
+      allMessages.push(...messages);
+      if (messages.length < pageSize) break;
+    }
+
+    return allMessages.filter((m) => {
+      if (m.msg?.toLowerCase().includes(query)) return true;
+      if (m.file?.name?.toLowerCase().includes(query)) return true;
+      if (m.attachments?.some((a) => a.title?.toLowerCase().includes(query))) return true;
+      return false;
+    });
   },
 
   reactToMessage: async (messageId: string, emoji: string): Promise<void> => {

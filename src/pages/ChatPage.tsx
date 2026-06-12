@@ -12,6 +12,7 @@ import { useMessageStore } from '@/stores/messageStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import ChatWindow from '@/modules/chat/components/ChatWindow';
+import StatusIndicator from '@/components/StatusIndicator';
 
 const ChatPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -149,11 +150,18 @@ const ChatPage: React.FC = () => {
                   }`}
                   onClick={() => handleRoomClick(room)}
                 >
-                  <Avatar className="w-10 h-10 mr-3">
-                    <AvatarFallback className="bg-primary/20 text-primary">
-                      {otherUser.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="w-10 h-10 mr-3">
+                      <AvatarFallback className="bg-primary/20 text-primary">
+                        {otherUser.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <StatusIndicator
+                      username={otherUser}
+                      size="sm"
+                      className="absolute -bottom-0.5 right-2"
+                    />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-text-primary truncate">
