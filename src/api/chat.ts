@@ -30,13 +30,16 @@ export const chatApi = {
     if (options?.oldest) params.append('oldest', options.oldest);
     if (options?.latest) params.append('latest', options.latest);
     
-    // Use im.history for direct messages, channels.history for channels
-    // Since we primarily deal with DMs, use im.history which works for both
     const response = await apiClient.get(`/im.history?${params.toString()}`);
     return response.data.messages || [];
   },
 
   markAsRead: async (roomId: string): Promise<void> => {
     await apiClient.post('/subscriptions.read', { rid: roomId });
+  },
+
+  getSubscription: async (roomId: string): Promise<any> => {
+    const response = await apiClient.get(`/subscriptions.getOne?roomId=${roomId}`);
+    return response.data.subscription;
   },
 };

@@ -20,19 +20,16 @@ const StatusIndicator: React.FC<StatusIndicatorProps> = ({
   showText = false,
   className = '',
 }) => {
-  const getStatus = usePresenceStore((s) => s.getStatus);
-  const getStatusText = usePresenceStore((s) => s.getStatusText);
-  const getStatusColor = usePresenceStore((s) => s.getStatusColor);
-
-  const status = getStatus(username);
-  const color = getStatusColor(status);
+  const status = usePresenceStore((s) => s.userStatuses[username] || 'offline');
+  const color = usePresenceStore((s) => s.getStatusColor(status));
+  const statusText = usePresenceStore((s) => s.getStatusText(status));
 
   return (
     <span className={`inline-flex items-center ${className}`}>
       <span className={`${sizeMap[size]} ${color} rounded-full ring-2 ring-background`} />
       {showText && (
         <span className="ml-1.5 text-xs text-text-tertiary">
-          {getStatusText(status)}
+          {statusText}
         </span>
       )}
     </span>

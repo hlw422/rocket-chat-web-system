@@ -1,7 +1,6 @@
 import { useMessageStore } from '@/stores/messageStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { usePresenceStore } from '@/stores/presenceStore';
 import type { Message } from '@/types/message';
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/websocket`;
@@ -135,6 +134,7 @@ class WebSocketService {
   }
 
   private handleMessage(data: any): void {
+    console.log('[WebSocket] Received message:', data.msg, data);
     switch (data.msg) {
       case 'connected':
         console.log('WebSocket connected, logging in...');
@@ -165,6 +165,7 @@ class WebSocketService {
 
   private handleChangeMessage(data: any): void {
     const { collection, fields } = data;
+    console.log('[WebSocket] Changed message:', collection, fields);
 
     switch (collection) {
       case 'stream-room-messages':
@@ -175,8 +176,8 @@ class WebSocketService {
         this.handleUserNotification(fields);
         break;
 
-      case 'stream-presence':
-        this.handlePresenceChange(fields);
+      case 'stream-notify-room':
+        this.handleRoomNotification(fields);
         break;
     }
   }
@@ -239,29 +240,26 @@ class WebSocketService {
     const { eventName, args } = fields;
     
     if (eventName?.includes('/notification')) {
-      // Handle notification
       console.log('User notification:', args);
     }
   }
 
-  private handlePresenceChange(fields: any): void {
+  private handleRoomNotification(fields: any): void {
     const { eventName, args } = fields;
+    console.log('[WebSocket] Room notification:', eventName, args);
     
-    if (!eventName) return;
-
-    const userIdMatch = eventName.match(/^([^/]+)\//);
-    if (!userIdMatch) return;
-    const userId = userIdMatch[1];
-
-    let status: string | undefined;
-    if (args?.[0]?.status) {
-      status = args[0].status;
-    } else if (typeof args?.[0] === 'string') {
-      status = args[0];
-    }
-
-    if (status && ['online', 'offline', 'busy', 'away'].includes(status)) {
-      usePresenceStore.getState().updateUserStatus(userId, status as any);
+    if (eventName?.includes('/read')) {
+      const roomId = eventName.split('/')[0];
+      const currentUserId = localStorage.getItem('userId');
+      const readerUserId = args?.[0];
+      
+      console.log('[WebSocket] Read event:', { roomId, currentUserId, readerUserId });
+      
+      // Only mark as read when the OTHER user reads messages
+      if (readerUserId && currentUserId && readerUserId !== currentUserId) {
+        console.log('[WebSocket] Marking messages as read for room:', roomId);
+        useMessageStore.getState().markRoomMessagesAsRead(roomId, currentUserId);
+      }
     }
   }
 
@@ -303,14 +301,6 @@ class WebSocketService {
         params: [`${userId}/notification`, false],
       });
 
-      // Subscribe to user status changes (current user)
-      this.send({
-        msg: 'sub',
-        id: 'stream-presence',
-        name: 'stream-presence',
-        params: [`${userId}/presence`, false],
-      });
-
       // Subscribe to all pending rooms
       this.pendingRoomSubscriptions.forEach((roomId) => {
         this.sendSubscribeToRoom(roomId);
@@ -342,43 +332,35 @@ class WebSocketService {
       msg: 'unsub',
       id: `stream-room-messages-${roomId}`,
     });
+    this.send({
+      msg: 'unsub',
+      id: `stream-notify-room-${roomId}`,
+    });
   }
 
   private sendSubscribeToRoom(roomId: string): void {
+    console.log('[WebSocket] Subscribing to room:', roomId);
     this.send({
       msg: 'sub',
       id: `stream-room-messages-${roomId}`,
       name: 'stream-room-messages',
       params: [roomId, true],
     });
-  }
 
-  subscribeToPresence(userId: string): void {
-    if (this.isLoggedIn) {
-      this.send({
-        msg: 'sub',
-        id: `stream-presence-${userId}`,
-        name: 'stream-presence',
-        params: [`${userId}/presence`, false],
-      });
-    }
-  }
-
-  subscribeToPresenceByUsername(username: string): void {
-    if (this.isLoggedIn) {
-      this.send({
-        msg: 'sub',
-        id: `stream-presence-${username}`,
-        name: 'stream-presence',
-        params: [`${username}/presence`, false],
-      });
-    }
-  }
-
-  unsubscribeFromPresence(userId: string): void {
+    // Subscribe to room read events
     this.send({
-      msg: 'unsub',
-      id: `stream-presence-${userId}`,
+      msg: 'sub',
+      id: `stream-notify-room-${roomId}`,
+      name: 'stream-notify-room',
+      params: [`${roomId}/read`, false],
+    });
+    
+    // Also try subscribing with different format
+    this.send({
+      msg: 'sub',
+      id: `stream-notify-room-read-${roomId}`,
+      name: 'stream-notify-room',
+      params: [roomId, false],
     });
   }
 

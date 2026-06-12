@@ -6,30 +6,42 @@ import type { Message } from '@/types/message';
 interface MessageState {
   messages: Record<string, Message[]>;
   isLoading: boolean;
+  otherUserLastSeen: Record<string, Date>;
   loadMessages: (roomId: string) => Promise<void>;
   sendMessage: (roomId: string, text: string) => Promise<void>;
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   addMessage: (roomId: string, message: Message) => void;
   updateMessageStatus: (messageId: string, status: Message['status']) => void;
+  markRoomMessagesAsRead: (roomId: string, userId: string) => void;
+  updateOtherUserLastSeen: (roomId: string, lastSeen: Date) => void;
 }
 
 export const useMessageStore = create<MessageState>((set, get) => ({
   messages: {},
   isLoading: false,
+  otherUserLastSeen: {},
 
   loadMessages: async (roomId: string) => {
     set({ isLoading: true });
     try {
       const serverMessages = await chatApi.getRoomMessages(roomId);
+      const currentUserId = localStorage.getItem('userId');
+      
+      // Set default status for current user's messages
+      const messagesWithStatus = serverMessages.map(m => {
+        if (m.u._id === currentUserId && !m.status) {
+          return { ...m, status: 'sent' as const };
+        }
+        return m;
+      });
+      
       set((state) => {
         const existingMessages = state.messages[roomId] || [];
-        // Find local-only messages (temp messages or messages not yet on server)
-        const serverIds = new Set(serverMessages.map(m => m._id));
+        const serverIds = new Set(messagesWithStatus.map(m => m._id));
         const localOnlyMessages = existingMessages.filter(m => 
           m._id.startsWith('temp_') || !serverIds.has(m._id)
         );
-        // Merge: server messages + any local-only messages that server doesn't have yet
-        const mergedMessages = [...serverMessages, ...localOnlyMessages]
+        const mergedMessages = [...messagesWithStatus, ...localOnlyMessages]
           .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
         return {
           messages: {
@@ -149,5 +161,36 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       }
       return { messages: newMessages };
     });
+  },
+
+  markRoomMessagesAsRead: (roomId: string, userId: string) => {
+    set((state) => {
+      const roomMessages = state.messages[roomId];
+      if (!roomMessages) return state;
+
+      const updatedMessages = roomMessages.map((m) => {
+        // Only mark messages sent by the specified user as read
+        if (m.u._id === userId && m.status !== 'read') {
+          return { ...m, status: 'read' as const };
+        }
+        return m;
+      });
+
+      return {
+        messages: {
+          ...state.messages,
+          [roomId]: updatedMessages,
+        },
+      };
+    });
+  },
+
+  updateOtherUserLastSeen: (roomId: string, lastSeen: Date) => {
+    set((state) => ({
+      otherUserLastSeen: {
+        ...state.otherUserLastSeen,
+        [roomId]: lastSeen,
+      },
+    }));
   },
 }));

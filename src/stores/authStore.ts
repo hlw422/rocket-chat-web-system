@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi } from '@/api/auth';
+import { useMessageStore } from '@/stores/messageStore';
 import type { User } from '@/types/user';
 
 interface AuthState {
@@ -75,6 +76,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       localStorage.removeItem('authToken');
       localStorage.removeItem('userId');
       localStorage.removeItem('username');
+      
+      // Clear message store
+      useMessageStore.setState({ messages: {} });
+      
       set({
         user: null,
         isAuthenticated: false,

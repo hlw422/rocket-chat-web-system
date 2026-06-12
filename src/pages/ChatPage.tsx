@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { useChatStore } from '@/stores/chatStore';
 import { useMessageStore } from '@/stores/messageStore';
 import { useAuthStore } from '@/stores/authStore';
+import { usePresenceStore } from '@/stores/presenceStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import ChatWindow from '@/modules/chat/components/ChatWindow';
 import StatusIndicator from '@/components/StatusIndicator';
@@ -21,6 +22,7 @@ const ChatPage: React.FC = () => {
   const { rooms, activeRoom, setActiveRoom, loadRooms, unreadCounts, isLoading, isLoaded } = useChatStore();
   const { loadMessages } = useMessageStore();
   const { subscribeToRoom, unsubscribeFromRoom, isConnected } = useWebSocket();
+  const { fetchMultipleUserStatuses } = usePresenceStore();
   const [searchQuery, setSearchQuery] = useState('');
   const previousRoomIdRef = useRef<string | undefined>(undefined);
   const hasLoadedRef = useRef(false);
@@ -55,6 +57,30 @@ const ChatPage: React.FC = () => {
       loadRooms();
     }
   }, [isConnected, loadRooms, isLoaded]);
+
+  // Fetch user statuses and set up polling every 5 seconds
+  useEffect(() => {
+    const fetchStatuses = () => {
+      const currentUsername = user?.username || localStorage.getItem('username') || '';
+      const otherUsernames = rooms
+        .map(room => room.usernames?.find(u => u !== currentUsername))
+        .filter((u): u is string => !!u);
+      
+      if (otherUsernames.length > 0) {
+        fetchMultipleUserStatuses(otherUsernames);
+      }
+    };
+
+    // Fetch immediately when rooms load
+    if (rooms.length > 0) {
+      fetchStatuses();
+    }
+
+    // Poll every 5 seconds
+    const interval = setInterval(fetchStatuses, 5000);
+
+    return () => clearInterval(interval);
+  }, [rooms, user, fetchMultipleUserStatuses]);
 
   useEffect(() => {
     // Only run when roomId actually changes
@@ -110,7 +136,7 @@ const ChatPage: React.FC = () => {
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-text-primary">聊天</h2>
-            <Button variant="ghost" size="icon" className="rounded-12">
+            <Button variant="ghost" size="icon" className="rounded-12" onClick={() => navigate('/contacts')}>
               <Plus className="w-5 h-5" />
             </Button>
           </div>
@@ -181,7 +207,7 @@ const ChatPage: React.FC = () => {
                         {room.lastMessage?.msg || '暂无消息'}
                       </p>
                       {unreadCount > 0 && (
-                        <Badge className="ml-2 px-2 py-0.5 min-w-[20px] h-5 text-xs">
+                        <Badge className="ml-2 px-1.5 py-0.5 min-w-[22px] h-[22px] text-xs font-bold bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </Badge>
                       )}

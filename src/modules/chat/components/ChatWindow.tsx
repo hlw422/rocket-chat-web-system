@@ -7,6 +7,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useMessageStore } from '@/stores/messageStore';
 import { useAuthStore } from '@/stores/authStore';
+import { usePresenceStore } from '@/stores/presenceStore';
+import { useFriendStore } from '@/stores/friendStore';
+import { chatApi } from '@/api/chat';
 import { fileApi } from '@/api/file';
 import EmojiPicker from '@/modules/message/components/EmojiPicker';
 import MessageSearch from '@/modules/message/components/MessageSearch';
@@ -20,7 +23,9 @@ interface ChatWindowProps {
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   const { user } = useAuthStore();
-  const { messages, loadMessages, sendMessage, addMessage, isLoading } = useMessageStore();
+  const { messages, loadMessages, sendMessage, addMessage, isLoading, otherUserLastSeen, updateOtherUserLastSeen } = useMessageStore();
+  const { fetchUserStatus } = usePresenceStore();
+  const { acceptFriendRequest } = useFriendStore();
   const [inputValue, setInputValue] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -32,6 +37,41 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const roomMessages = messages[room._id] || [];
   const isAtBottomRef = useRef(true);
+
+  const getOtherUser = () => {
+    return room.usernames?.find(u => u !== user?.username) || '';
+  };
+
+  const otherUser = getOtherUser();
+
+  // Fetch other user's status and poll every 5 seconds
+  useEffect(() => {
+    if (!otherUser) return;
+
+    fetchUserStatus(otherUser);
+    const interval = setInterval(() => fetchUserStatus(otherUser), 5000);
+
+    return () => clearInterval(interval);
+  }, [otherUser, fetchUserStatus]);
+
+  // Poll other user's last seen to determine read status
+  useEffect(() => {
+    const fetchLastSeen = async () => {
+      try {
+        const subscription = await chatApi.getSubscription(room._id);
+        if (subscription?.ls) {
+          updateOtherUserLastSeen(room._id, new Date(subscription.ls));
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    };
+
+    fetchLastSeen();
+    const interval = setInterval(fetchLastSeen, 3000);
+
+    return () => clearInterval(interval);
+  }, [room._id, updateOtherUserLastSeen]);
 
   useEffect(() => {
     loadMessages(room._id);
@@ -128,12 +168,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
     }
   };
 
-  const getOtherUser = () => {
-    return room.usernames?.find(u => u !== user?.username) || '';
-  };
-
   const isCurrentUser = (message: Message) => {
     return message.u._id === user?._id;
+  };
+
+  const isFriendRequest = (message: Message) => {
+    return message.msg?.startsWith('[FRIEND_REQUEST]');
+  };
+
+  const isFriendAccept = (message: Message) => {
+    return message.msg?.startsWith('[FRIEND_ACCEPT]');
+  };
+
+  const getFriendRequestMessage = (message: Message) => {
+    return message.msg?.replace('[FRIEND_REQUEST]', '') || '';
+  };
+
+  const handleAcceptFriendRequest = async () => {
+    try {
+      await acceptFriendRequest(otherUser);
+    } catch (error) {
+      console.error('Failed to accept friend request:', error);
+    }
+  };
+
+  const isMessageRead = (message: Message): boolean => {
+    if (message.u._id !== user?._id) return false;
+    const lastSeen = otherUserLastSeen[room._id];
+    if (!lastSeen) return false;
+    const messageTime = new Date(message.ts).getTime();
+    return messageTime <= lastSeen.getTime();
   };
 
   const formatTime = (date: Date) => {
@@ -149,8 +213,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
     const previousTime = new Date(previous.ts).getTime();
     return currentTime - previousTime > 5 * 60 * 1000; // 5 minutes
   };
-
-  const otherUser = getOtherUser();
 
   const getFileIcon = (attachment: any) => {
     if (attachment.image_url) return <ImageIcon className="w-5 h-5" />;
@@ -304,12 +366,43 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ room }) => {
                           : 'bg-background-secondary text-text-primary rounded-bl-4'
                       }`}
                     >
-                      {message.msg && !(message.attachments?.some(a => a.image_url)) && (
-                        <p className="whitespace-pre-wrap break-words">{message.msg}</p>
+                      {isFriendRequest(message) ? (
+                        <div>
+                          <p className="whitespace-pre-wrap break-words">{getFriendRequestMessage(message)}</p>
+                          {!isMe && (
+                            <div className="mt-2 pt-2 border-t border-border">
+                              <p className="text-xs text-text-tertiary mb-2">好友请求</p>
+                              <Button
+                                size="sm"
+                                className="rounded-12"
+                                onClick={handleAcceptFriendRequest}
+                              >
+                                同意添加好友
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : isFriendAccept(message) ? (
+                        <div>
+                          <p className="whitespace-pre-wrap break-words">{message.msg?.replace('[FRIEND_ACCEPT]', '')}</p>
+                          <p className="text-xs text-green-400 mt-1">已成为好友</p>
+                        </div>
+                      ) : (
+                        <>
+                          {message.msg && !(message.attachments?.some(a => a.image_url)) && (
+                            <p className="whitespace-pre-wrap break-words">{message.msg}</p>
+                          )}
+                          {renderAttachments(message)}
+                        </>
                       )}
-                      {renderAttachments(message)}
                       {message.status === 'sending' && (
-                        <span className="text-xs opacity-70 mt-1 block">发送中...</span>
+                        <span className="text-xs opacity-70 mt-1 block text-right">发送中...</span>
+                      )}
+                      {isMe && !isFriendRequest(message) && !isFriendAccept(message) && message.status !== 'sending' && !isMessageRead(message) && (
+                        <span className="text-xs text-gray-400 mt-1 block text-right">未读</span>
+                      )}
+                      {isMe && !isFriendRequest(message) && !isFriendAccept(message) && isMessageRead(message) && (
+                        <span className="text-xs text-blue-400 mt-1 block text-right">已读</span>
                       )}
                     </div>
                   </div>

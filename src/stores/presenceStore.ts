@@ -1,12 +1,14 @@
 import { create } from 'zustand';
+import { userApi } from '@/api/user';
 
 type UserStatus = 'online' | 'offline' | 'busy' | 'away';
 
 interface PresenceState {
   userStatuses: Record<string, UserStatus>;
-  updateUserStatus: (userId: string, status: UserStatus) => void;
-  batchUpdateStatuses: (updates: Record<string, UserStatus>) => void;
-  getStatus: (userId: string) => UserStatus;
+  updateUserStatus: (username: string, status: UserStatus) => void;
+  fetchUserStatus: (username: string) => Promise<void>;
+  fetchMultipleUserStatuses: (usernames: string[]) => Promise<void>;
+  getStatusByUsername: (username: string) => UserStatus;
   getStatusText: (status: UserStatus) => string;
   getStatusColor: (status: UserStatus) => string;
 }
@@ -14,20 +16,30 @@ interface PresenceState {
 export const usePresenceStore = create<PresenceState>((set, get) => ({
   userStatuses: {},
 
-  updateUserStatus: (userId: string, status: UserStatus) => {
+  updateUserStatus: (username: string, status: UserStatus) => {
     set((state) => ({
-      userStatuses: { ...state.userStatuses, [userId]: status },
+      userStatuses: { ...state.userStatuses, [username]: status },
     }));
   },
 
-  batchUpdateStatuses: (updates: Record<string, UserStatus>) => {
-    set((state) => ({
-      userStatuses: { ...state.userStatuses, ...updates },
-    }));
+  fetchUserStatus: async (username: string) => {
+    try {
+      const user = await userApi.getUserByUsername(username);
+      if (user && user.status) {
+        get().updateUserStatus(username, user.status as UserStatus);
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch status for ${username}:`, error);
+    }
   },
 
-  getStatus: (userId: string) => {
-    return get().userStatuses[userId] || 'offline';
+  fetchMultipleUserStatuses: async (usernames: string[]) => {
+    const promises = usernames.map((username) => get().fetchUserStatus(username));
+    await Promise.allSettled(promises);
+  },
+
+  getStatusByUsername: (username: string) => {
+    return get().userStatuses[username] || 'offline';
   },
 
   getStatusText: (status: UserStatus) => {

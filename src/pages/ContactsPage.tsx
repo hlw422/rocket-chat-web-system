@@ -1,45 +1,54 @@
 import React, { useEffect, useState } from 'react';
-import { Search, UserPlus, MoreHorizontal, Check, X } from 'lucide-react';
+import { Search, UserPlus, MoreHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useFriendStore } from '@/stores/friendStore';
 import { useAuthStore } from '@/stores/authStore';
-import StatusIndicator from '@/components/StatusIndicator';
+import { usePresenceStore } from '@/stores/presenceStore';
 import { useNavigate } from 'react-router-dom';
+import StatusIndicator from '@/components/StatusIndicator';
 
 const ContactsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { fetchMultipleUserStatuses } = usePresenceStore();
   const {
     friends,
-    friendRequests,
     searchResults,
     isLoading,
     searchUsers,
     sendFriendRequest,
-    acceptFriendRequest,
-    rejectFriendRequest,
-    removeFriend,
-    blockUser,
-    unblockUser,
     loadFriends,
-    loadFriendRequests,
     clearSearchResults,
   } = useFriendStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('friends');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [selectedUsername, setSelectedUsername] = useState('');
 
   useEffect(() => {
     loadFriends();
-    loadFriendRequests();
-  }, [loadFriends, loadFriendRequests]);
+  }, [loadFriends]);
+
+  // Fetch friend statuses and poll every 5 seconds
+  useEffect(() => {
+    const fetchStatuses = () => {
+      const friendUsernames = friends.map(f => f.user.username);
+      if (friendUsernames.length > 0) {
+        fetchMultipleUserStatuses(friendUsernames);
+      }
+    };
+
+    if (friends.length > 0) {
+      fetchStatuses();
+    }
+
+    const interval = setInterval(fetchStatuses, 5000);
+    return () => clearInterval(interval);
+  }, [friends, fetchMultipleUserStatuses]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -53,8 +62,25 @@ const ContactsPage: React.FC = () => {
   }, [searchQuery, searchUsers, clearSearchResults]);
 
   const handleStartChat = (username: string) => {
-    // Navigate to chat with this user
     navigate('/chat');
+  };
+
+  const handleAddClick = (username: string) => {
+    setSelectedUsername(username);
+    setRequestMessage('你好，我想加你为好友');
+    setShowRequestDialog(true);
+  };
+
+  const handleSendRequest = async () => {
+    if (!selectedUsername || !requestMessage.trim()) return;
+    try {
+      await sendFriendRequest(selectedUsername, requestMessage);
+      setShowRequestDialog(false);
+      setSelectedUsername('');
+      setRequestMessage('');
+    } catch (error) {
+      console.error('Failed to send friend request:', error);
+    }
   };
 
   return (
@@ -65,14 +91,11 @@ const ContactsPage: React.FC = () => {
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-text-primary">通讯录</h2>
-            <Button variant="ghost" size="icon" className="rounded-12">
-              <UserPlus className="w-5 h-5" />
-            </Button>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-tertiary w-4 h-4" />
             <Input
-              placeholder="搜索联系人"
+              placeholder="搜索用户添加好友"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 rounded-12 bg-background-secondary"
@@ -80,183 +103,124 @@ const ContactsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 mx-4 mt-2">
-            <TabsTrigger value="friends">好友</TabsTrigger>
-            <TabsTrigger value="requests">
-              申请
-              {friendRequests.length > 0 && (
-                <Badge className="ml-2 px-2 py-0.5 min-w-[20px] h-5 text-xs">
-                  {friendRequests.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          <ScrollArea className="flex-1">
-            <TabsContent value="friends" className="p-2">
-              {/* Search Results */}
-              {searchQuery && searchResults.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-text-secondary mb-2 px-2">
-                    搜索结果
-                  </h3>
-                  {searchResults.map((user) => (
-                    <div
-                      key={user._id}
-                      className="flex items-center p-3 rounded-12 hover:bg-background-secondary"
-                    >
-                      <Avatar className="w-10 h-10 mr-3">
-                        <AvatarFallback className="bg-primary/20 text-primary">
-                          {user.username.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-text-primary truncate">
-                          {user.name || user.username}
-                        </p>
-                        <p className="text-sm text-text-tertiary truncate">
-                          @{user.username}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-12"
-                        onClick={() => sendFriendRequest(user._id, '你好，我想加你为好友')}
-                      >
-                        添加
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Friends List */}
-              <h3 className="text-sm font-medium text-text-secondary mb-2 px-2">
-                好友列表
-              </h3>
-              {friends.map((friend) => (
-                <div
-                  key={friend._id}
-                  className="flex items-center p-3 rounded-12 hover:bg-background-secondary group"
-                >
-                  <div className="relative">
+        <ScrollArea className="flex-1">
+          <div className="p-2">
+            {/* Search Results */}
+            {searchQuery && searchResults.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-text-secondary mb-2 px-2">
+                  搜索结果
+                </h3>
+                {searchResults.map((u) => (
+                  <div
+                    key={u._id}
+                    className="flex items-center p-3 rounded-12 hover:bg-background-secondary"
+                  >
                     <Avatar className="w-10 h-10 mr-3">
                       <AvatarFallback className="bg-primary/20 text-primary">
-                        {friend.user.username.charAt(0).toUpperCase()}
+                        {u.username.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <StatusIndicator
-                      username={friend.user.username}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate">
+                        {u.name || u.username}
+                      </p>
+                      <p className="text-sm text-text-tertiary truncate">
+                        @{u.username}
+                      </p>
+                    </div>
+                    <Button
                       size="sm"
-                      className="absolute -bottom-0.5 right-2"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-text-primary truncate">
-                      {friend.user.name || friend.user.username}
-                    </p>
-                    <p className="text-sm text-text-tertiary truncate">
-                      @{friend.user.username}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="w-8 h-8 rounded-full"
-                      onClick={() => handleStartChat(friend.user.username)}
+                      variant="outline"
+                      className="rounded-12"
+                      onClick={() => handleAddClick(u.username)}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                      </svg>
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="w-8 h-8 rounded-full"
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
+                      添加
                     </Button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
 
-              {friends.length === 0 && !searchQuery && (
-                <div className="text-center py-8 text-text-tertiary">
-                  <p>暂无好友</p>
-                  <p className="text-sm mt-1">搜索并添加好友</p>
-                </div>
-              )}
-            </TabsContent>
+            {searchQuery && searchResults.length === 0 && !isLoading && (
+              <div className="text-center py-4 text-text-tertiary">
+                <p className="text-sm">未找到用户</p>
+              </div>
+            )}
 
-            <TabsContent value="requests" className="p-2">
-              {friendRequests.map((request) => (
-                <Card key={request._id} className="mb-3">
-                  <CardContent className="p-4">
-                    <div className="flex items-start">
+            {/* Friends List */}
+            {!searchQuery && (
+              <>
+                <h3 className="text-sm font-medium text-text-secondary mb-2 px-2">
+                  好友列表
+                </h3>
+                {friends.map((friend) => (
+                  <div
+                    key={friend._id}
+                    className="flex items-center p-3 rounded-12 hover:bg-background-secondary group"
+                  >
+                    <div className="relative">
                       <Avatar className="w-10 h-10 mr-3">
                         <AvatarFallback className="bg-primary/20 text-primary">
-                          {request.from.username.charAt(0).toUpperCase()}
+                          {friend.user.username.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-text-primary">
-                            {request.from.name || request.from.username}
-                          </p>
-                          <span className="text-xs text-text-tertiary">
-                            {new Date(request.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-text-secondary mt-1">
-                          {request.message}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-3">
-                          <Button
-                            size="sm"
-                            className="rounded-12"
-                            onClick={() => acceptFriendRequest(request._id)}
-                          >
-                            <Check className="w-4 h-4 mr-1" />
-                            同意
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="rounded-12"
-                            onClick={() => rejectFriendRequest(request._id)}
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            拒绝
-                          </Button>
-                        </div>
-                      </div>
+                      <StatusIndicator
+                        username={friend.user.username}
+                        size="sm"
+                        className="absolute -bottom-0.5 right-2"
+                      />
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate">
+                        {friend.user.name || friend.user.username}
+                      </p>
+                      <p className="text-sm text-text-tertiary truncate">
+                        @{friend.user.username}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="w-8 h-8 rounded-full"
+                        onClick={() => handleStartChat(friend.user.username)}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="w-8 h-8 rounded-full"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
 
-              {friendRequests.length === 0 && (
-                <div className="text-center py-8 text-text-tertiary">
-                  <p>暂无好友申请</p>
-                </div>
-              )}
-            </TabsContent>
-          </ScrollArea>
-        </Tabs>
+                {friends.length === 0 && (
+                  <div className="text-center py-8 text-text-tertiary">
+                    <p>暂无好友</p>
+                    <p className="text-sm mt-1">搜索用户名添加好友</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
       </div>
 
       {/* Detail Panel */}
@@ -284,6 +248,35 @@ const ContactsPage: React.FC = () => {
           <p className="text-sm mt-1">从左侧列表选择好友</p>
         </div>
       </div>
+
+      {/* Friend Request Dialog */}
+      {showRequestDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-16 p-6 w-[400px] shadow-lg">
+            <h3 className="text-lg font-semibold text-text-primary mb-4">发送好友请求</h3>
+            <p className="text-sm text-text-secondary mb-4">
+              向 <span className="font-medium">@{selectedUsername}</span> 发送好友请求
+            </p>
+            <Input
+              placeholder="输入验证消息"
+              value={requestMessage}
+              onChange={(e) => setRequestMessage(e.target.value)}
+              className="mb-4"
+            />
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowRequestDialog(false)}
+              >
+                取消
+              </Button>
+              <Button onClick={handleSendRequest}>
+                发送
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
