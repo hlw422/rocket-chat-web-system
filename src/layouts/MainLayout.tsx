@@ -19,11 +19,9 @@ const MainLayout: React.FC = () => {
   const { user, checkAuth, isLoading } = useAuthStore();
 
   useEffect(() => {
-    // Fetch user data on mount if not already loaded
-    if (!user) {
-      checkAuth();
-    }
-  }, [user, checkAuth]);
+    // Always fetch full user data on mount
+    checkAuth();
+  }, [checkAuth]);
 
   // Show loading while fetching user data
   if (isLoading && !user) {

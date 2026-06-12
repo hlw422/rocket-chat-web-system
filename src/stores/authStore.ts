@@ -13,6 +13,7 @@ interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   clearError: () => void;
+  updateUser: (user: Partial<User>) => void;
 }
 
 // Initialize user from localStorage if available
@@ -106,4 +107,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  updateUser: (userData: Partial<User>) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...userData } : null,
+    }));
+  },
 }));

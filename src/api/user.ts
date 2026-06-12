@@ -18,7 +18,15 @@ export const userApi = {
   },
 
   updateProfile: async (data: Partial<User>): Promise<User> => {
-    const response = await apiClient.post('/users.update', data);
+    const updateData: any = {};
+    if (data.name) updateData.name = data.name;
+    if (data.emails?.[0]?.address) updateData.email = data.emails[0].address;
+    
+    console.log('[userApi] Updating profile with:', updateData);
+    const response = await apiClient.post('/users.updateOwnBasicInfo', {
+      data: updateData,
+    });
+    console.log('[userApi] Update response:', response.data);
     return response.data.user;
   },
 
